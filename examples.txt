@@ -1,0 +1,31 @@
+product1 = Product 1 "Ipad" 12 Electronics
+product2 = Product 2 "Blouse"  15 Clothing
+product3 = Product 3 "Lemons"  5 Groceries
+productBook = Product 4 "Functional Programming for Dummies 101" 40 Books
+
+catalog :: [Product]
+catalog = [product1, product2, product3, productBook]
+
+stock = Stock (zip [product1, product2, product3, productBook] [2, 3, 4, 2])
+
+cart1 = CartItem product1 2
+cart2 = CartItem product2 5
+cartBook1   = CartItem productBook 1
+cartBook2   = CartItem productBook 2
+cart  = ShoppingCart [cart1, cart2]
+cartwBook1 = ShoppingCart [cartBook1]
+cartwBook2 = ShoppingCart [cartBook2]
+cartMixed = ShoppingCart [cart1, cart2, cartBook2]
+
+customerGold   = Customer 1 "Ivan"   Gold
+customerSilver = Customer 2 "Isa"  Silver
+customerBronze = Customer 3 "Siro"  Bronze
+
+orderGold   = Order customerGold   cart 0 Pending
+orderSilver = Order customerSilver cart 0 Pending
+orderBronze = Order customerBronze cart 0 Pending
+orderBookGold1   = Order customerGold   cartwBook1 0 Pending
+orderBookSilver1 = Order customerSilver cartwBook1 0 Pending
+orderBookBronze1 = Order customerBronze cartwBook1 0 Pending
+orderMixedGold = Order customerGold cartMixed 0 Pending
+
