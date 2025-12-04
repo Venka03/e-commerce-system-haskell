@@ -1,0 +1,38 @@
+Customer 1,Ivan,Gold
+1,Book,12.0,Books,2
+2,Lemons,1.5,Groceries,5
+Price 25.11,Pending
+Customer 1,Ivan,Gold
+1,Book,12.0,Books,1
+2,Lemons,1.5,Groceries,2
+Price 11.88,Processing
+Customer 1,Ivan,Gold
+3,Sandals,50.0,Clothing,2
+4,IPhone,999.0,Electronics,1
+Price 989.1,Delivered
+Customer 2,Isa,Gold
+3,Sandals,50.0,Clothing,1
+4,IPhone,999.0,Electronics,2
+Price 1843.2,Shipped
+Customer 3,Siro,Bronze
+1,Book,12.0,Books,2
+2,Lemons,1.5,Groceries,5
+3,Sandals,50.0,Clothing,2
+4,IPhone,999.0,Electronics,1
+Price 1126.9,Cancelled
+Customer 3,Siro,Bronze
+1,Book,12.0,Books,1
+2,Lemons,1.5,Groceries,2
+3,Sandals,50.0,Clothing,1
+4,IPhone,999.0,Electronics,2
+Price 2061.2,Shipped
+Customer 4,Yan,Silver
+1,Book,12.0,Books,2
+1,Book,12.0,Books,1
+2,Lemons,1.5,Groceries,5
+2,Lemons,1.5,Groceries,2
+3,Sandals,50.0,Clothing,2
+3,Sandals,50.0,Clothing,1
+4,IPhone,999.0,Electronics,1
+4,IPhone,999.0,Electronics,2
+Price 3028.6948,Cancelled
