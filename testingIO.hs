@@ -236,7 +236,7 @@ readCustomer fp = do
       return (c:cs)
 
 formatStock :: Stock -> String
-formatStock (Stock items) = unlines [show id ++ "," ++ name ++ "," ++ show price ++ "," ++ show category ++ "," ++ show quantity | (Product id name price category, quantity) <- items]
+formatStock (Stock items) = unlines [show id ++ "," ++ name ++ "," ++ printf "%.2f" price ++ "," ++ show category ++ "," ++ show quantity | (Product id name price category, quantity) <- items]
 
 saveStockToHandle :: Handle -> Stock -> IO ()
 saveStockToHandle handle stock = hPutStrLn handle (formatStock stock)
@@ -275,11 +275,11 @@ readStock fp = do
 
 formatCartItem :: CartItem -> String
 formatCartItem (CartItem (Product id name price category) qty) =
-    show id ++ "," ++ name ++ "," ++ show price ++ "," ++ show category ++ "," ++ show qty
+    show id ++ "," ++ name ++ "," ++ printf "%.2f" price ++ "," ++ show category ++ "," ++ show qty
 
 formatPriceStatus :: Float -> Status -> String
 formatPriceStatus totalPrice status = 
-    "Price " ++ show totalPrice ++ "," ++ show status
+    "Price " ++ printf "%.2f" totalPrice ++ "," ++ show status
 
 saveOrderToHandle :: Handle -> Order -> IO ()
 saveOrderToHandle handle (Order cust (ShoppingCart items) totalPrice status) = do
@@ -630,7 +630,7 @@ ordersById id currentAllOrders
         | otherwise = do
                         newAllOrders <- return $ updateOrders userOrders currentAllOrders Processing
                         newAllOrders <- return $ updateOrders userOrders newAllOrders Shipped
-                        putStrLn $ "Customer " ++ show id ++ " orders updated"
+                        putStrLn $ "Orders of Customer " ++ show id ++ " updated"
                         start newAllOrders -- go back to start with updated orders
         where userOrders = searchOrders [ById id] currentAllOrders
 ordersByLL :: LoyaltyLevel -> [Order] -> IO [Order]
@@ -652,7 +652,7 @@ ordersByHighValue currentAllOrders customers = updateOrders customersOrders pend
 
 checkIdInput :: String -> [Order] -> IO [Order]
 checkIdInput id currentAllOrders
-        -- | all isDigit id = ordersById (read id :: Int) currentAllOrders
+        | all isDigit id = ordersById (read id :: Int) currentAllOrders
         | id == "b" || id == "B" = startWork currentAllOrders
         | otherwise = do
                 putStrLn "ID consist only of digits!"
@@ -787,7 +787,7 @@ session = do
 -}
 checkPassword :: String -> IO ()
 checkPassword inputPass
-  | inputPass == "1234" = do
+  | inputPass == "IvanAndIsaAreTheBestShopOwners" = do
       putStrLn "Access granted."
       ownerSession
   | otherwise = do

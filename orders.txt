@@ -13,7 +13,7 @@ Price 989.1,Delivered
 Customer 2,Isa,Gold
 3,Sandals,50.0,Clothing,1
 4,IPhone,999.0,Electronics,2
-Price 1843.2,Shipped
+Price 1843.2,Processing
 Customer 3,Siro,Bronze
 1,Book,12.0,Books,2
 2,Lemons,1.5,Groceries,5
@@ -27,12 +27,8 @@ Customer 3,Siro,Bronze
 4,IPhone,999.0,Electronics,2
 Price 2061.2,Shipped
 Customer 4,Yan,Silver
-1,Book,12.0,Books,2
-1,Book,12.0,Books,1
-2,Lemons,1.5,Groceries,5
-2,Lemons,1.5,Groceries,2
-3,Sandals,50.0,Clothing,2
-3,Sandals,50.0,Clothing,1
-4,IPhone,999.0,Electronics,1
-4,IPhone,999.0,Electronics,2
+1,Book,12.0,Books,3
+2,Lemons,1.5,Groceries,7
+3,Sandals,50.0,Clothing,3
+4,IPhone,999.0,Electronics,3
 Price 3028.6948,Cancelled
