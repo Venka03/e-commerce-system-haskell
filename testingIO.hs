@@ -2,14 +2,19 @@ import Prelude hiding (product)
 import System.IO  -- first load modules
 import Data.Char (isDigit, toLower)
 import Text.Read (readMaybe)
+import Data.Maybe (fromMaybe)
+import Text.Printf (printf)
+
+--
 
 data Category = Electronics | Books | Clothing | Groceries deriving (Show, Eq, Read)
 
 data Product = Product {pid :: Int, pname :: String, price :: Float, category :: Category}
 instance Show Product where
-    show (Product id name price category) = "Product id: " ++ show id ++ ", product: " ++ show name ++ ", price: " ++ show price ++ ", category: " ++ show category
+    show (Product id name price category) = "Product id: " ++ show id ++ ", product: " ++ show name ++ ", price: " ++ printf "%.2f" price ++ ", category: " ++ show category
+
 instance Eq Product where
-        (Product pid1 _ _ _) == (Product pid2 _ _ _) = pid1 == pid2 --add on from 5 - needed in 5
+    (Product pid1 _ _ _) == (Product pid2 _ _ _) = pid1 == pid2
 
 data LoyaltyLevel = Bronze | Silver | Gold deriving (Show, Eq, Read)
 
@@ -17,6 +22,7 @@ data Customer = Customer {cid :: Int, cname :: String, loyaltyLevel :: LoyaltyLe
 
 instance Show Customer where
     show (Customer id name loyaltyLevel) = "Customer id: " ++ show id ++ ", customer: " ++ show name ++ ", loyalty level: " ++ show loyaltyLevel
+
 instance Eq Customer where
   (Customer id1 _ _) == (Customer id2 _ _) = id1 == id2
 
@@ -24,18 +30,19 @@ data CartItem = CartItem {product :: Product, quantity :: Int}
 
 instance Show CartItem where
     show (CartItem product quantity) = "Item: " ++ show product ++ ", units: " ++ show quantity
+
 instance Eq CartItem where
         (CartItem p1 q1) == (CartItem p2 q2) = p1 == p2 && q1 == q2
 
 newtype ShoppingCart = ShoppingCart [CartItem]
 
 instance Show ShoppingCart where
-    show (ShoppingCart items) = "Shopping cart:\n" ++ unlines (map (\x -> "\t" ++ show x) items)
+    show (ShoppingCart items) = "Shopping cart:\n" ++ unlines (map (\x -> '\t': show x) items)
 
 instance Eq ShoppingCart where
         (ShoppingCart items1) == (ShoppingCart items2) = items1 == items2
 
-newtype Stock = Stock [(Product, Int)] -- product and their available quantity
+newtype Stock = Stock [(Product, Int)]
 
 instance Show Stock where
     show (Stock items) = "Stock:\n" ++ unlines (map (\(p, i) -> "\t" ++ show p ++ ", quantity available: " ++ show i) items)
@@ -46,7 +53,7 @@ data Order = Order {customer :: Customer, shoppingCart :: ShoppingCart, totalPri
 
 instance Show Order where
     show (Order customer shoppingCart totalPrice status) = "Order for customer: " ++ show customer ++ "\n" ++ show shoppingCart 
-        ++ "Total price: " ++ show totalPrice ++ ", status: " ++ show status ++ "\n"
+        ++ "Total price: " ++ printf "%.2f" totalPrice ++ ", status: " ++ show status ++ "\n"
 
 instance Eq Order where
     (Order (Customer cid1 _ _) shpcrt1 _ _) == (Order (Customer cid2 _ _) shpcrt2 _ _) = cid1 == cid2 && shpcrt1 == shpcrt2
@@ -61,25 +68,33 @@ instance Discountable LoyaltyLevel where
   applyDiscount Silver p = p * 0.95
   applyDiscount Gold   p = p * 0.90
 
-
 instance Discountable Category where
   applyDiscount Books p = p * 0.85 -- Books 15% off
   applyDiscount _     p = p
 
-newtype Error = Error [Product] deriving Show --created due to 7
+newtype Error = Error [Product] --created due to 7
+instance Show Error where
+    show (Error products) = "Error: The following products are out of stock:\n" ++ unlines (map (\p -> '\t': show p) products)
 
--- 3
 calculateProductPrice :: Product -> Float
 calculateProductPrice (Product _ _ p _) = p
 
--- 4
+myRound2 :: Float -> Float
+myRound2 x = fromIntegral rounded / 100
+  where
+    scaled     = x * 100
+    integer    = floor scaled
+    fraction   = scaled - fromIntegral integer
+    rounded
+      | fraction >= 0.5 = integer + 1
+      | otherwise       = integer
+    
 calculateOrderTotal :: Order -> Float
 calculateOrderTotal (Order cust (ShoppingCart items) _ _) =
-  sum [ fromIntegral (quantity it) * priceAfter (product it) | it <- items ]
+  myRound2 (sum [ fromIntegral (quantity it) * priceAfter (product it) | it <- items ])
   where
-    priceAfter prod = applyDiscount (loyaltyLevel cust)(applyDiscount (category prod)(calculateProductPrice prod))
+    priceAfter prod = applyDiscount (loyaltyLevel cust) (applyDiscount (category prod) (calculateProductPrice prod))
 
--- 5
 add :: CartItem -> ShoppingCart -> ShoppingCart
 add item (ShoppingCart xs) = ShoppingCart (item:xs)
 
@@ -88,18 +103,7 @@ addToCart item (ShoppingCart []) = ShoppingCart [item]
 addToCart i@(CartItem product quantity) (ShoppingCart ((CartItem p q): cartList)) 
                 | product == p = ShoppingCart (CartItem p (q+quantity) : cartList)
                 | otherwise = add (CartItem p q) (addToCart i (ShoppingCart cartList))
---EXAMPLES
---product1 = Product 1 "Ipad" 12 Electronics
---product2 = Product 2 "Blouse"  15 Clothing
---product3 = Product 3 "Lemons"  5 Groceries
---productBook = Product 4 "Functional Programming for Dummies 101" 40 Books
 
---catalog :: [Product]
---catalog = [product1, product2, product3, productBook]
-
---stock = Stock (zip [product1, product2, product3, productBook] [2, 3, 4, 2])
-
---6
 stockQuantity :: Stock -> Product -> Int
 stockQuantity (Stock xs) p
   | null matches = 0
@@ -111,25 +115,14 @@ checkStock :: Stock -> ShoppingCart -> [Product]
 checkStock stock (ShoppingCart items) =
   [ p | CartItem p q <- items, stockQuantity stock p < q ]
 
-
---7
---createOrder :: Customer -> ShoppingCart -> Either Error Order
---createOrder customer c@(ShoppingCart xs) 
---        | null missing = Right (Order customer c totalPrice Pending)
---        | otherwise = Left (Error missing)
---        where 
---                missing = checkStock c
---                totalPrice = calculateOrderTotal (Order customer c 0 Pending)
-                
 createOrder :: Stock -> Customer -> ShoppingCart -> Either Error Order
 createOrder stock customer c@(ShoppingCart xs)
-  | null missing = Right (Order customer c totalPrice Pending)
-  | otherwise    = Left (Error missing)
-  where
-    missing    = checkStock stock c
-    totalPrice = calculateOrderTotal (Order customer c 0 Pending)
+    | null missing = Right (Order customer c totalPrice Pending)
+    | otherwise    = Left (Error missing)
+    where
+        missing    = checkStock stock c
+        totalPrice = calculateOrderTotal (Order customer c 0 Pending)
 
---8
 transitionAllowed :: Status -> Status -> Bool
 transitionAllowed Pending Processing = True
 transitionAllowed Pending Cancelled  = True
@@ -144,7 +137,6 @@ updateOrderStatus o@(Order _ _ _ old) new
   | transitionAllowed old new = Just (o { status = new })
   | otherwise             = Nothing
 
---9
 isProductByIdInCart :: Int -> ShoppingCart -> Bool
 isProductByIdInCart _ (ShoppingCart []) = False
 isProductByIdInCart productId (ShoppingCart ((CartItem (Product pid _ _ _) _):xs)) 
@@ -168,7 +160,6 @@ searchOrders ((ByProductId id): xs) orders = searchOrders xs (filter (\(Order _ 
 searchOrders ((ByCategory category): xs) orders = searchOrders xs (filter (\(Order _ cart _ _) -> isProductByCategoryInCart category cart) orders)
 searchOrders ((ByTotalPrice price): xs) orders = searchOrders xs (filter (\(Order _ _ p _) -> price == p) orders)
 
---10
 -- helper 1
 isActive :: Status -> Bool
 isActive Delivered = False
@@ -201,9 +192,9 @@ highValueCustomers orders limit =
   [ c | c <- uniq (customersOf active), totalOfCustomer c active > limit] -- calls to helper 3 and helper 5
   where
     active = activeOrders orders --call ti helper 2
-    
--- 11
-splitOn :: Char -> String -> [String] -- (REUSED from 12 exactly the same)
+
+--IO
+splitOn :: Char -> String -> [String]
 splitOn _ "" = [""]
 splitOn delimiter (x:xs)
     | x == delimiter = "" : rest
@@ -211,32 +202,29 @@ splitOn delimiter (x:xs)
   where
     rest = splitOn delimiter xs
 
-listToString :: Show a => [a] -> String -- (REUSED from 12 exactly the same)
-listToString []   = ""
-listToString (x:xs) = show x ++ "\n" ++ listToString xs
 
--- File I/O: Customers  (recycling Ivan's wonderful logic)
-parseCustomer :: Customer -> String -- (REUSED from 12 exactly the same)
-parseCustomer (Customer cid name ll) = show cid ++ "," ++ name ++ "," ++ show ll
+listToString :: Show a => [a] -> String
+listToString = foldr (\x acc -> show x ++ "\n" ++ acc) ""
 
-saveCustomers :: Handle -> [Customer] -> IO () -- (REUSED from 12 exactly the same)
-saveCustomers h = mapM_ (hPutStrLn h . parseCustomer)
+formatCustomer :: Customer -> String
+formatCustomer (Customer id name loyaltyLevel) = show id ++ "," ++ name ++ "," ++ show loyaltyLevel
 
-parseCustomerLine :: String -> Customer -- (from 12 but rearranged logic...works exactly same)
-parseCustomerLine line = Customer cid name ll
-  where
-    [cidStr, name, llStr] = splitOn ',' line
-    cid = read cidStr
-    ll  = read llStr
-{- 
+saveCustomersToHandle :: Handle -> [Customer] -> IO ()
+saveCustomersToHandle handle = mapM_ (hPutStrLn handle . formatCustomer)
+
+saveCustomersToFile :: FilePath -> [Customer] -> IO ()
+saveCustomersToFile filepath customer = 
+    withFile filepath WriteMode $ \handle -> 
+        saveCustomersToHandle handle customer
+
 parseCustomerLine :: String -> Customer
 parseCustomerLine line = Customer id name loyaltyLevel
   where
     [idStr, name, loyaltyLevelStr] = splitOn ',' line
     id = read idStr :: Int
     loyaltyLevel = read loyaltyLevelStr :: LoyaltyLevel
--}
-readCustomer :: FilePath -> IO [Customer] -- NEW LOGIC -- Force full file read to avoid Windows file-lock from lazy readFile.
+
+readCustomer :: FilePath -> IO [Customer]
 readCustomer fp = do
   contents <- readFile fp
   forceCustomers (map parseCustomerLine (lines contents))
@@ -247,22 +235,17 @@ readCustomer fp = do
       c `seq` forceCustomers cs
       return (c:cs)
 
--- File I/O: Stock  (using Ivan's logic)
-parseStock :: Stock -> String -- (REUSED from 12 exactly the same)
-parseStock (Stock items) =  unlines [ show pid ++ "," ++ name ++ "," ++ show price ++ "," ++ show cat ++ "," ++ show qty | (Product pid name price cat, qty) <- items ]
+formatStock :: Stock -> String
+formatStock (Stock items) = unlines [show id ++ "," ++ name ++ "," ++ show price ++ "," ++ show category ++ "," ++ show quantity | (Product id name price category, quantity) <- items]
 
-saveStock :: Handle -> Stock -> IO () -- (REUSED from 12 exactly the same)
-saveStock h stock = hPutStrLn h (parseStock stock)
+saveStockToHandle :: Handle -> Stock -> IO ()
+saveStockToHandle handle stock = hPutStrLn handle (formatStock stock)
 
-parseProductQuantityLine :: String -> (Product, Int) -- (from 12 but rearranged logic...works exactly same)
-parseProductQuantityLine line = (Product pid name price cat, qty)
-  where
-    [pidStr, name, priceStr, catStr, qtyStr] = splitOn ',' line
-    pid   = read pidStr
-    price = read priceStr
-    cat   = read catStr
-    qty   = read qtyStr
-{-
+saveStockToFile :: FilePath -> Stock -> IO ()
+saveStockToFile filepath stock = 
+    withFile filepath WriteMode $ \handle -> 
+        saveStockToHandle handle stock
+
 parseProductQuantityLine :: String -> (Product, Int)
 parseProductQuantityLine line = (Product id name price category, qty)
   where
@@ -271,8 +254,9 @@ parseProductQuantityLine line = (Product id name price category, qty)
     price = read priceStr :: Float
     category = read categoryStr :: Category
     qty = read qtyStr :: Int
--}
-readStock :: FilePath -> IO Stock -- NEW LOGIC -- Force full file read to avoid Windows file-lock from lazy readFile.
+
+
+readStock :: FilePath -> IO Stock
 readStock fp = do
   contents <- readFile fp
   forceList (parseAll (lines contents))
@@ -289,51 +273,63 @@ readStock fp = do
       p `seq` q `seq` forceList rest
       return (Stock ((p,q):rest))
 
--- File I/O: Orders  (Ivan's) -- (REUSED from 12 exactly the same)
-parsePriceStatusLine :: String -> (Float, Status) -- (from 12 but rearranged logic...works exactly same)
-parsePriceStatusLine line = (totalPrice, status)
-  where
-    [priceStr, statusStr] = splitOn ',' (drop 6 line)
-    totalPrice = read priceStr
-    status     = read statusStr
-{-
+formatCartItem :: CartItem -> String
+formatCartItem (CartItem (Product id name price category) qty) =
+    show id ++ "," ++ name ++ "," ++ show price ++ "," ++ show category ++ "," ++ show qty
+
+formatPriceStatus :: Float -> Status -> String
+formatPriceStatus totalPrice status = 
+    "Price " ++ show totalPrice ++ "," ++ show status
+
+saveOrderToHandle :: Handle -> Order -> IO ()
+saveOrderToHandle handle (Order cust (ShoppingCart items) totalPrice status) = do
+    hPutStrLn handle ("Customer " ++ formatCustomer cust)
+    mapM_ (hPutStrLn handle . formatCartItem) items
+    hPutStrLn handle (formatPriceStatus totalPrice status)
+
+saveOrdersToFile :: FilePath -> [Order] -> IO ()
+saveOrdersToFile filepath orders = 
+    withFile filepath WriteMode $ \handle ->
+        mapM_ (saveOrderToHandle handle) orders
+
 parsePriceStatusLine :: String -> (Float, Status)
 parsePriceStatusLine line = (totalPrice, status)
   where
-    [priceStr, statusStr] = splitOn ',' (drop 6 line)  -- Remove "Price " prefix
+    [priceStr, statusStr] = splitOn ',' (drop 6 line)
     totalPrice = read priceStr :: Float
     status = read statusStr :: Status
--}
-readCartItems :: [String] -> ([CartItem], [String]) -- (REUSED from 12 exactly the same)
+
+
+readCartItems :: [String] -> ([CartItem], [String])
 readCartItems [] = ([], [])
 readCartItems (line:rest)
-  | take 5 line == "Price" = ([], line:rest)
-  | otherwise              = (CartItem product qty : items, remaining)
+    | take 5 line == "Price" = ([], line:rest)
+    | otherwise = (CartItem product qty : items, remaining)
   where
     (items, remaining) = readCartItems rest
-    (product, qty)     = parseProductQuantityLine line
+    (product, qty) = parseProductQuantityLine line
 
-readOrderFromLines :: [String] -> (Order, [String]) -- (REUSED from 12 exactly the same)
-readOrderFromLines [] = error "No order data"
+  
+readOrderFromLines :: [String] -> (Order, [String])
 readOrderFromLines (customerLine:rest) = (order, remaining)
   where
-    customer = parseCustomerLine (drop 9 customerLine)
+    customer = parseCustomerLine (drop 9 customerLine) -- Remove "Customer " prefix
     (cartItems, priceAndRest) = readCartItems rest
     (totalPrice, status) = parsePriceStatusLine (head priceAndRest)
     shoppingCart = ShoppingCart cartItems
     order = Order customer shoppingCart totalPrice status
-    remaining  = tail priceAndRest
+    remaining = tail priceAndRest
 
--- Read all orders from file
-readAllOrdersFromLines :: [String] -> [Order] -- (REUSED from 12 exactly the same)
+
+readAllOrdersFromLines :: [String] -> [Order]
 readAllOrdersFromLines [] = []
 readAllOrdersFromLines lines = order : readAllOrdersFromLines remaining
   where
     (order, remaining) = readOrderFromLines lines
 
--- Read orders from file
-readOrdersFromFile :: FilePath -> IO [Order] -- NEW LOGIC -- Force full file read to avoid Windows file-lock from lazy readFile.
-readOrdersFromFile filepath = do
+
+readOrders :: FilePath -> IO [Order]
+readOrders filepath = do
   contents <- readFile filepath
   forceList (readAllOrdersFromLines (lines contents))
   where -- strictly evaluate head, then recurse to force the entire list
@@ -342,26 +338,6 @@ readOrdersFromFile filepath = do
     forceList (o:os) = do
       o `seq` forceList os
       return (o:os)
-
--- Writing orders
-formatCartItem :: CartItem -> String -- (REUSED from 12 exactly the same)
-formatCartItem (CartItem (Product pid name price cat) qty) =
-  show pid ++ "," ++ name ++ "," ++ show price ++ "," ++ show cat ++ "," ++ show qty
-
-formatPriceStatus :: Float -> Status -> String -- (REUSED from 12 exactly the same)
-formatPriceStatus totalPrice status =
-  "Price " ++ show totalPrice ++ "," ++ show status
-
-writeOrderToHandle :: Handle -> Order -> IO () -- (REUSED from 12 exactly the same)
-writeOrderToHandle h (Order cust (ShoppingCart items) totalPrice status) = do
-  hPutStrLn h ("Customer " ++ parseCustomer cust)
-  mapM_ (hPutStrLn h . formatCartItem) items
-  hPutStrLn h (formatPriceStatus totalPrice status)
-
-writeOrdersToFile :: FilePath -> [Order] -> IO () -- (REUSED from 12 exactly the same)
-writeOrdersToFile fp orders =
-  withFile fp WriteMode $ \h ->
-    mapM_ (writeOrderToHandle h) orders
 
 -- each user needs to identify himself/herself --helper 1 - search by name
 searchProductsByName :: String -> [Product] -> [Product]
@@ -401,9 +377,7 @@ printProducts (p:ps) = do
   print p
   printProducts ps
 
---------------------------------------------------------------------------------
--- Product search I/O (derive catalog from Stock)
---------------------------------------------------------------------------------
+-- Product search I/O -- derive catalog from Stock
 catalogFromStock :: Stock -> [Product]
 catalogFromStock (Stock items) = [ p | (p, qty) <- items, qty > 0 ]
 
@@ -432,9 +406,7 @@ searchMaxPriceIO stock =
     handle Nothing = putStrLn "That is not a number."
     handle (Just mp) =  printProducts (searchProductsByMaxPrice mp (catalogFromStock stock))
 
---------------------------------------------------------------------------------
 -- Add to cart I/O -- use addToCart from 5
---------------------------------------------------------------------------------
 addToCartIO :: Stock -> ShoppingCart -> IO ShoppingCart
 addToCartIO stock cart =
   do putStrLn "Enter product ID:"
@@ -446,26 +418,23 @@ addToCartIO stock cart =
     processInputs :: Maybe Int -> Maybe Int -> IO ShoppingCart
     processInputs (Just pid) (Just qty) =
       addToCartHelper pid qty (catalogFromStock stock) cart
-
     processInputs _ _ =
       do putStrLn "Invalid ID or quantity."
          return cart
 
 addToCartHelper :: Int -> Int -> [Product] -> ShoppingCart -> IO ShoppingCart
-addToCartHelper pid qty catalog cart = addToCartMaybe (findProductById pid catalog) qty cart
+--addToCartHelper pid qty catalog cart = addToCartMaybe (findProductById pid catalog) qty cart
+addToCartHelper pid qty catalog = addToCartMaybe (findProductById pid catalog) qty
 
 addToCartMaybe :: Maybe Product -> Int -> ShoppingCart -> IO ShoppingCart
 addToCartMaybe Nothing _ cart =
   do putStrLn "Product not found."
      return cart
-
 addToCartMaybe (Just p) qty cart =
   do putStrLn "Product added to cart."
      return (addToCart (CartItem p qty) cart)
 
---------------------------------------------------------------------------------
 -- Customer identification (new vs existing)
---------------------------------------------------------------------------------
 findCustomerById :: Int -> [Customer] -> Maybe Customer
 findCustomerById _ [] = Nothing
 findCustomerById cid (c@(Customer cid' _ _) : cs)
@@ -545,16 +514,6 @@ updateStockWithCart (Stock items) (ShoppingCart cartItems) =
     updateOne acc (CartItem (Product pid _ _ _) q) =
       [ if pid' == pid then (p, qty - q) else (p, qty) | (p@(Product pid' _ _ _), qty) <- acc ]
 
-writeCustomersToFile :: FilePath -> [Customer] -> IO ()
-writeCustomersToFile filepath customers =
-  withFile filepath WriteMode $ \handle ->
-    saveCustomers handle customers
-
-writeStockToFile :: FilePath -> Stock -> IO ()
-writeStockToFile filepath stock =
-  withFile filepath WriteMode $ \handle ->
-    saveStock handle stock
-
 shopLoop :: Stock -> ShoppingCart -> IO (ShoppingCart, Stock)
 shopLoop stock cart = do
   putStrLn "\nWhat would you like to do?"
@@ -569,7 +528,6 @@ shopLoop stock cart = do
   handle choice stock cart
   where
     handle :: String -> Stock -> ShoppingCart -> IO (ShoppingCart, Stock)
-
     handle "1" st ct = do
       searchProductIO st
       shopLoop st ct
@@ -593,9 +551,8 @@ shopLoop stock cart = do
     handle _ st ct = do
       putStrLn "Unknown option."
       shopLoop st ct
---------------------------------------------------------------------------------
+
 -- Place order using createOrder (from 7) and update files
---------------------------------------------------------------------------------
 placeOrderIO :: Stock -> Customer -> ShoppingCart -> IO (Either Error Order)
 placeOrderIO stock cust cart =
   handleCreate (createOrder stock cust cart)
@@ -603,7 +560,6 @@ placeOrderIO stock cust cart =
     handleCreate (Left err) = do
       putStrLn ("Order could not be created: " ++ show err)
       return (Left err)
-
     handleCreate (Right order) = do
       putStrLn "Order created successfully:"
       print order
@@ -615,7 +571,7 @@ customerSession = do
 
   customers <- readCustomer "customers.txt"
   stock     <- readStock    "stock.txt"
-  orders    <- readOrdersFromFile "orders.txt"
+  orders    <- readOrders "orders.txt"
 
   (customer, customers') <- identifyCustomer customers
 
@@ -627,9 +583,9 @@ customerSession = do
 
     handleCart (ShoppingCart []) _ customers' stockBeforeOrder orders = do
       putStrLn "Your cart is empty. Nothing to do."
-      writeCustomersToFile "customers.txt" customers'
-      writeStockToFile     "stock.txt"     stockBeforeOrder
-      writeOrdersToFile    "orders.txt"    orders
+      saveCustomersToFile "customers.txt" customers'
+      saveStockToFile     "stock.txt"     stockBeforeOrder
+      saveOrdersToFile    "orders.txt"    orders
       putStrLn "Goodbye."
 
     handleCart cart cust customers' stockBeforeOrder orders = do
@@ -642,16 +598,222 @@ customerSession = do
 
     orderResult (Left _) _ _ customers' stockBeforeOrder orders = do
       putStrLn "Order failed. No changes saved (except new customers)."
-      writeCustomersToFile "customers.txt" customers'
-      writeStockToFile     "stock.txt"     stockBeforeOrder
-      writeOrdersToFile    "orders.txt"    orders
+      saveCustomersToFile "customers.txt" customers'
+      saveStockToFile     "stock.txt"     stockBeforeOrder
+      saveOrdersToFile    "orders.txt"    orders
 
     orderResult (Right newOrder) cart _ customers' stockBeforeOrder orders = do
       putStrLn "Updating files..."
-      writeCustomersToFile "customers.txt" customers'
-      writeStockToFile     "stock.txt"     (updateStockWithCart stockBeforeOrder cart)
-      writeOrdersToFile    "orders.txt"    (orders ++ [newOrder])
+      saveCustomersToFile "customers.txt" customers'
+      saveStockToFile     "stock.txt"     (updateStockWithCart stockBeforeOrder cart)
+      saveOrdersToFile    "orders.txt"    (orders ++ [newOrder])
       putStrLn "Order placed and data saved. Thank you!"
 
+--main :: IO ()
+--main = customerSession
+
+--12
+updateOrders :: [Order] -> [Order] -> Status -> [Order]
+updateOrders toUpdate orders newStatus = map update orders
+    where
+        update :: Order -> Order
+        update order
+            | order `elem` toUpdate = fromMaybe order (updateOrderStatus order newStatus)
+            | otherwise             = order
+
+
+ordersById :: Int -> [Order] -> IO [Order]
+ordersById id currentAllOrders
+        | null userOrders = do
+                putStrLn "No orders by user"
+                searchById currentAllOrders -- let user search again
+        | otherwise = do
+                        newAllOrders <- return $ updateOrders userOrders currentAllOrders Processing
+                        newAllOrders <- return $ updateOrders userOrders newAllOrders Shipped
+                        putStrLn $ "Customer " ++ show id ++ " orders updated"
+                        start newAllOrders -- go back to start with updated orders
+        where userOrders = searchOrders [ById id] currentAllOrders
+ordersByLL :: LoyaltyLevel -> [Order] -> IO [Order]
+ordersByLL ll currentAllOrders
+        | null usersOrders = do
+                putStrLn "No orders by this Loyalty Level"
+                searchByLL currentAllOrders
+        | otherwise = do
+                        newAllOrders <- return $ updateOrders usersOrders currentAllOrders Processing
+                        newAllOrders <- return $ updateOrders usersOrders newAllOrders Shipped
+                        putStrLn "Orders updated"
+                        start newAllOrders
+        where usersOrders = searchOrders [ByLoyaltyLevel ll] currentAllOrders
+
+ordersByHighValue :: [Order] -> [Customer] -> [Order]
+ordersByHighValue currentAllOrders customers = updateOrders customersOrders pendingToProcessing Shipped
+        where   customersOrders = concat [ searchOrders [ById id] currentAllOrders | (Customer id _ _) <- customers ]
+                pendingToProcessing = updateOrders customersOrders currentAllOrders Processing
+
+checkIdInput :: String -> [Order] -> IO [Order]
+checkIdInput id currentAllOrders
+        -- | all isDigit id = ordersById (read id :: Int) currentAllOrders
+        | id == "b" || id == "B" = startWork currentAllOrders
+        | otherwise = do
+                putStrLn "ID consist only of digits!"
+                searchById currentAllOrders
+
+
+searchById :: [Order] -> IO [Order]
+searchById currentAllOrders = do
+        putStrLn "Introduce user ID (b to come back):"
+        id <- getLine
+        checkIdInput id currentAllOrders
+
+searchByLLInputCheck :: String -> [Order] -> IO [Order]
+searchByLLInputCheck ll currentAllOrders
+        | ll == "bronze" = ordersByLL Bronze currentAllOrders
+        | ll == "silver" = ordersByLL Silver currentAllOrders
+        | ll == "gold"   = ordersByLL Gold currentAllOrders
+        | ll == "b"      = startWork currentAllOrders
+        | otherwise = do
+                putStrLn "There is no such Loyalty Level"
+                searchByLL currentAllOrders
+
+
+searchByLL :: [Order] -> IO [Order]
+searchByLL currentAllOrders = do
+        putStrLn "Introduce user Loyalty Level (Bronze, Silver or Gold. b to come back): "
+        ll <- getLine
+        searchByLLInputCheck (map toLower ll) currentAllOrders
+
+usersByHighValue :: Float -> [Order] -> IO [Order]
+usersByHighValue limit currentAllOrders
+        | limit > 0 = do
+                putStrLn "Orders updated"
+                start $ ordersByHighValue currentAllOrders (highValueCustomers currentAllOrders limit)
+        | otherwise = do
+                putStrLn "Total price should be non negative number"
+                searchByHighValue currentAllOrders
+                
+
+searchByHighValueInputCheck :: String -> [Order] -> IO [Order]
+searchByHighValueInputCheck value currentAllOrders
+        | all isDigit value = usersByHighValue (read value :: Float) currentAllOrders
+        | value == "b" || value == "B" = startWork currentAllOrders
+        | otherwise = do
+                putStrLn "That is not a number"
+                searchByHighValue currentAllOrders
+
+
+searchByHighValue :: [Order] -> IO [Order]
+searchByHighValue currentAllOrders = do
+        putStrLn "Introduce the minimum total price of not Delivered or Cancelled orders (b to come back):"
+        value <- getLine
+        searchByHighValueInputCheck value currentAllOrders
+
+startWorkInputCheck :: String -> [Order] -> IO [Order]
+startWorkInputCheck answer currentAllOrders
+        | answer == "1" = searchById currentAllOrders
+        | answer == "2" = searchByLL currentAllOrders
+        | answer == "3" = searchByHighValue currentAllOrders
+        | answer == "b" = start currentAllOrders
+        | otherwise = do
+                putStrLn "There is no such option"
+                startWork currentAllOrders
+
+
+startWork :: [Order] -> IO [Order]
+startWork currentAllOrders = do 
+        putStrLn "What do you want to do?"
+        putStrLn "Options:\n1. Search orders by user ID\n2. Search orders by Loyalty Level"
+        putStrLn "3. Search orders by high value customers"
+        putStrLn "b. Back to main menu"
+        answer <- getLine
+        startWorkInputCheck answer currentAllOrders
+
+checkStartAnswer :: String -> [Order] -> IO [Order]
+checkStartAnswer answer currentAllOrders
+        | answer `elem` ["yes", "yeah", "y"] = startWork currentAllOrders
+        | answer `elem` ["no", "nope", "n", "nah"] = do
+                putStrLn "Understood :("
+                return currentAllOrders
+        | otherwise = do
+                    putStrLn "I do not understand you"
+                    start currentAllOrders
+
+
+start :: [Order] -> IO [Order]
+start currentAllOrders = do
+        putStrLn "Do you want to continue?"
+        answer <- getLine
+        checkStartAnswer (map toLower answer) currentAllOrders
+
+ownerSession :: IO ()
+ownerSession = do
+        putStrLn "Welcome back manager!"
+        putStrLn "\nReading orders..."
+        loadedOrders <- readOrders "orders.txt"
+        putStrLn "Orders loaded:"
+
+        allorders <- start loadedOrders
+        putStrLn "Bye, have a good day!"
+        -- Save orders
+        putStrLn "Saving orders..."
+        saveOrdersToFile "orders.txt" allorders
+        putStrLn "Orders saved!"
+
+{-
+checkPassword :: String -> Bool
+checkPassword inputPass
+        | inputPass == "IvanAndIsaAreTheBestShopOwners" = do 
+                    putStrLn "Access granted."
+                    ownerSession
+        | otherwise = do
+                    putStrLn "Incorrect password. Access denied."
+                    session
+
+session :: IO ()
+session = do
+        putStrLn "Are you a customer (c) or the shop owner (o)? (b to exit)"
+        answer <- getLine
+        handleAnswer answer
+    where
+        handleAnswer :: String -> IO ()
+        handleAnswer "c" = customerSession
+        handleAnswer "o" = do
+                putStrLn "Please enter the owner password:"
+                inputPass <- getLine
+                checkPassword inputPass
+        handleAnswer "b" = putStrLn "Goodbye."
+        handleAnswer _   = do
+                            putStrLn "Unknown option"
+                            session
+-}
+checkPassword :: String -> IO ()
+checkPassword inputPass
+  | inputPass == "1234" = do
+      putStrLn "Access granted."
+      ownerSession
+  | otherwise = do
+      putStrLn "Incorrect password. Access denied."
+      session
+
+----------------------------------------------------------------
+-- Top-level session selector + main
+----------------------------------------------------------------
+
+session :: IO ()
+session = do
+  putStrLn "Are you a customer (c) or the shop owner (o)? (b to exit)"
+  answer <- getLine
+  handleAnswer answer
+  where
+    handleAnswer :: String -> IO ()
+    handleAnswer "c" = customerSession
+    handleAnswer "o" = do
+      putStrLn "Please enter the owner password:"
+      inputPass <- getLine
+      checkPassword inputPass
+    handleAnswer "b" = putStrLn "Goodbye."
+    handleAnswer _   = do
+      putStrLn "Unknown option"
+      session
+
 main :: IO ()
-main = customerSession
+main = session
